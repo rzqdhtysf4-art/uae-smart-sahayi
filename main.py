@@ -1,11 +1,8 @@
-import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, CallbackQueryHandler
-import pytz
-from datetime import datetime
 
-# 1. ബോട്ട് ടോക്കൺ ഇവിടെ സെറ്റ് ചെയ്യുന്നു
-# സുരക്ഷാ കാരണങ്ങളാൽ ഈ ടോക്കൺ പിന്നീട് മാറ്റാൻ ശ്രദ്ധിക്കുക
+# ================== CONFIG ==================
+# ⚠️ ടോക്കൺ പബ്ലിക് ആയി ഷെയർ ചെയ്യരുത്! .env ഫയലിൽ വെക്കുക പിന്നീട്
 TOKEN = '8456375787:AAGK1bScNtIsdHAAtk1YyvBJEcY-mnLMJTI'
 
 # ലാംഗ്വേജ് ഡിക്ഷണറി
@@ -14,17 +11,21 @@ STRINGS = {
         'welcome': "Welcome to UAE Smart Sahayi! Please select your language:",
         'main_menu': "How can I help you today?",
         'visa_fine': "Visa Fine Calculator",
-        'parking': "Parking SMS",
+        'parking': "Parking SMS / Fine",
         'official_links': "Official Gov Links",
-        'fine_msg': "Overstay fine is 50 AED per day. Check official links below:",
+        'fine_msg': "Overstay fine is 50 AED per day.\n\nCheck your status here:",
+        'parking_msg': "To check parking violations:\n• Send your vehicle number to 7725 (RTA)\n• Or use RTA Dubai App / Dubai Police App",
+        'links_title': "Official Government Links:",
     },
     'ml': {
         'welcome': "UAE സ്മാർട്ട് സഹായിയിലേക്ക് സ്വാഗതം! നിങ്ങളുടെ ഭാഷ തിരഞ്ഞെടുക്കുക:",
         'main_menu': "ഇന്ന് ഞാൻ നിങ്ങളെ എങ്ങനെ സഹായിക്കണം?",
         'visa_fine': "വിസ ഫൈൻ കാൽക്കുലേറ്റർ",
-        'parking': "പാർക്കിംഗ് SMS",
-        'official_links': "ഗവൺമെന്റ് ലിങ്കുകൾ",
-        'fine_msg': "വിസ കാലാവധി കഴിഞ്ഞാൽ ഒരു ദിവസത്തേക്ക് 50 AED ആണ് ഫൈൻ. താഴെ പറയുന്ന ലിങ്കുകൾ വഴി കൂടുതൽ പരിശോധിക്കാം:",
+        'parking': "പാർക്കിംഗ് SMS / ഫൈൻ",
+        'official_links': "ഗവൺമെന്റ് ഔദ്യോഗിക ലിങ്കുകൾ",
+        'fine_msg': "വിസ കാലാവധി കഴിഞ്ഞാൽ ഒരു ദിവസം 50 AED ഫൈൻ.\n\nനിങ്ങളുടെ സ്റ്റാറ്റസ് ഇവിടെ ചെക്ക് ചെയ്യാം:",
+        'parking_msg': "പാർക്കിംഗ് ഫൈൻ ചെക്ക് ചെയ്യാൻ:\n• നിങ്ങളുടെ വാഹന നമ്പർ 7725 എന്ന നമ്പറിലേക്ക് അയക്കുക\n• RTA Dubai App അല്ലെങ്കിൽ Dubai Police App ഉപയോഗിക്കുക",
+        'links_title': "ഔദ്യോഗിക ഗവൺമെന്റ് ലിങ്കുകൾ:",
     },
     'zh': {
         'welcome': "欢迎来到阿联酋智能助手！请选择您的语言：",
@@ -32,7 +33,9 @@ STRINGS = {
         'visa_fine': "签证罚款计算器",
         'parking': "停车短信",
         'official_links': "政府官方链接",
-        'fine_msg': "签证逾期罚款为每天 50 迪拉姆。请点击下方查看官方链接：",
+        'fine_msg': "签证逾期罚款为每天 50 迪拉姆。\n\n请在此处检查您的状态：",
+        'parking_msg': "检查停车违规：\n• 将车牌号发送至 7725\n• 或使用 RTA Dubai App / Dubai Police App",
+        'links_title': "官方政府链接：",
     }
 }
 
@@ -43,40 +46,62 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("中文 🇨🇳", callback_data='lang_zh')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
+    
     if update.message:
         await update.message.reply_text(STRINGS['en']['welcome'], reply_markup=reply_markup)
+
+async def show_main_menu(query, lang: str):
+    """മെയിൻ മെനു കാണിക്കാൻ"""
+    keyboard = [
+        [InlineKeyboardButton(STRINGS[lang]['visa_fine'], callback_data='visa')],
+        [InlineKeyboardButton(STRINGS[lang]['parking'], callback_data='parking')],
+        [InlineKeyboardButton(STRINGS[lang]['official_links'], callback_data='links')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(STRINGS[lang]['main_menu'], reply_markup=reply_markup)
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    if query.data.startswith('lang_'):
-        lang = query.data.split('_')[1]
+    data = query.data
+    lang = context.user_data.get('lang', 'en')
+
+    if data.startswith('lang_'):
+        lang = data.split('_')[1]
         context.user_data['lang'] = lang
-        
+        await show_main_menu(query, lang)
+
+    elif data == 'visa':
         keyboard = [
-            [InlineKeyboardButton(STRINGS[lang]['visa_fine'], callback_data='visa')],
-            [InlineKeyboardButton(STRINGS[lang]['official_links'], callback_data='links')]
+            [InlineKeyboardButton("ICP Smart Services", url="https://smartservices.icp.gov.ae/")],
+            [InlineKeyboardButton("GDRFA Dubai", url="https://smart.gdrfad.gov.ae/")],
+            [InlineKeyboardButton("← Back to Menu", callback_data='back')]
         ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(STRINGS[lang]['main_menu'], reply_markup=reply_markup)
-        
-    elif query.data == 'visa':
-        lang = context.user_data.get('lang', 'en')
-        links = [
-            [InlineKeyboardButton("ICP Portal", url="https://smartservices.icp.gov.ae/")],
-            [InlineKeyboardButton("GDRFA Dubai", url="https://smart.gdrfad.gov.ae/")]
+        await query.edit_message_text(STRINGS[lang]['fine_msg'], reply_markup=InlineKeyboardMarkup(keyboard))
+
+    elif data == 'links':
+        keyboard = [
+            [InlineKeyboardButton("ICP - Federal", url="https://icp.gov.ae")],
+            [InlineKeyboardButton("GDRFA Dubai", url="https://gdrfad.gov.ae")],
+            [InlineKeyboardButton("Dubai Police", url="https://dubaipolice.gov.ae")],
+            [InlineKeyboardButton("RTA Dubai", url="https://www.rta.ae")],
+            [InlineKeyboardButton("← Back to Menu", callback_data='back')]
         ]
-        reply_markup = InlineKeyboardMarkup(links)
-        await query.edit_message_text(STRINGS[lang]['fine_msg'], reply_markup=reply_markup)
+        await query.edit_message_text(STRINGS[lang]['links_title'], reply_markup=InlineKeyboardMarkup(keyboard))
+
+    elif data == 'parking':
+        keyboard = [[InlineKeyboardButton("← Back to Menu", callback_data='back')]]
+        await query.edit_message_text(STRINGS[lang]['parking_msg'], reply_markup=InlineKeyboardMarkup(keyboard))
+
+    elif data == 'back':
+        await show_main_menu(query, lang)
 
 if __name__ == '__main__':
-    # ബോട്ട് നിർമ്മിക്കുന്നു
     application = ApplicationBuilder().token(TOKEN).build()
     
-    # ഹാൻഡ്‌ലറുകൾ ചേർക്കുന്നു
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CallbackQueryHandler(button))
     
-    print("UAE Smart Sahayi Bot is running...")
+    print("✅ UAE Smart Sahayi Bot is running...")
     application.run_polling()
