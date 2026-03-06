@@ -5,6 +5,7 @@ import pytz
 from datetime import datetime
 
 # 1. ബോട്ട് ടോക്കൺ ഇവിടെ സെറ്റ് ചെയ്യുന്നു
+# സുരക്ഷാ കാരണങ്ങളാൽ ഈ ടോക്കൺ പിന്നീട് മാറ്റാൻ ശ്രദ്ധിക്കുക
 TOKEN = '8456375787:AAGK1bScNtIsdHAAtk1YyvBJEcY-mnLMJTI'
 
 # ലാംഗ്വേജ് ഡിക്ഷണറി
@@ -33,7 +34,6 @@ STRINGS = {
         'official_links': "政府官方链接",
         'fine_msg': "签证逾期罚款为每天 50 迪拉姆。请点击下方查看官方链接：",
     }
-    # മറ്റു ഭാഷകൾ നമുക്ക് പിന്നീട് ഇതേപോലെ ചേർക്കാം
 }
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -43,7 +43,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("中文 🇨🇳", callback_data='lang_zh')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(STRINGS['en']['welcome'], reply_markup=reply_markup)
+    if update.message:
+        await update.message.reply_text(STRINGS['en']['welcome'], reply_markup=reply_markup)
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -70,10 +71,12 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(STRINGS[lang]['fine_msg'], reply_markup=reply_markup)
 
 if __name__ == '__main__':
+    # ബോട്ട് നിർമ്മിക്കുന്നു
     application = ApplicationBuilder().token(TOKEN).build()
     
+    # ഹാൻഡ്‌ലറുകൾ ചേർക്കുന്നു
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CallbackQueryHandler(button))
     
-    print("Bot is running...")
+    print("UAE Smart Sahayi Bot is running...")
     application.run_polling()
